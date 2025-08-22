@@ -1,164 +1,165 @@
-class Car {
-  constructor(x, y, width, height, controlType, maxSpeed = 3) {
-    this.x = x;
-    this.y = y;
-    this.width = width;
-    this.height = height;
-    this.speed = 0;
-    this.acceleration = 0.2;
-    this.maxSpeed = maxSpeed;
-    this.friction = 0.05;
-    this.angle = 0;
-    this.damaged = false;
-    this.useBrain = controlType === "AI";
-    this.controls = new Controls(controlType);
-    if (controlType !== "DUMMY") {
-      this.sensor = new Sensor(this);
-      this.brain = new NeuralNetwork([this.sensor.rayCount, 6, 4]);
-    }
+class Car{
+  constructor(x,y,width,height,controlType,maxSpeed=3,color="blue"){
+      this.x=x;
+      this.y=y;
+      this.width=width;
+      this.height=height;
 
-    // 🔹 initialize polygon right away
-    this.polygon = this.#createPolygon();
+      this.speed=0;
+      this.acceleration=0.2;
+      this.maxSpeed=maxSpeed;
+      this.friction=0.05;
+      this.angle=0;
+      this.damaged=false;
+
+      this.useBrain=controlType=="AI";
+
+      if(controlType!="DUMMY"){
+          this.sensor=new Sensor(this);
+          this.brain=new NeuralNetwork(
+              [this.sensor.rayCount,6,4]
+          );
+      }
+      this.controls=new Controls(controlType);
+
+      this.img=new Image();
+      this.img.src="car.png"
+
+      this.mask=document.createElement("canvas");
+      this.mask.width=width;
+      this.mask.height=height;
+
+      const maskCtx=this.mask.getContext("2d");
+      this.img.onload=()=>{
+          maskCtx.fillStyle=color;
+          maskCtx.rect(0,0,this.width,this.height);
+          maskCtx.fill();
+
+          maskCtx.globalCompositeOperation="destination-atop";
+          maskCtx.drawImage(this.img,0,0,this.width,this.height);
+      }
   }
 
-  update(roadBorders, traffic) {
-    if (!this.damaged) {
-      this.#move();
-      this.polygon = this.#createPolygon();
-      this.damaged = this.#assessDamage(roadBorders, traffic);
-    }
-    if (this.sensor) {
-      this.sensor.update(roadBorders, traffic);
-      const offsets = this.sensor.readings.map((s) =>
-        s == null ? 0 : 1 - s.offset
-      );
-      const outputs = NeuralNetwork.feedforward(offsets, this.brain);
-
-      if (this.useBrain) {
-        this.controls.forward = outputs[0] > 0.5;
-        this.controls.left = outputs[1] > 0.5;
-        this.controls.right = outputs[2] > 0.5;
-        this.controls.reverse = outputs[3] > 0.5;
+  update(roadBorders,traffic){
+      if(!this.damaged){
+          this.#move();
+          this.polygon=this.#createPolygon();
+          this.damaged=this.#assessDamage(roadBorders,traffic);
       }
-    }
+      if(this.sensor){
+          this.sensor.update(roadBorders,traffic);
+          const offsets=this.sensor.readings.map(
+              s=>s==null?0:1-s.offset
+          );
+          const outputs=NeuralNetwork.feedForward(offsets,this.brain);
+
+          if(this.useBrain){
+              this.controls.forward=outputs[0];
+              this.controls.left=outputs[1];
+              this.controls.right=outputs[2];
+              this.controls.reverse=outputs[3];
+          }
+      }
   }
 
-  #assessDamage(roadBorders, traffic) {
-    for (let i = 0; i < roadBorders.length; i++) {
-      if (polysIntersect(this.polygon, roadBorders[i])) {
-        return true;
+  #assessDamage(roadBorders,traffic){
+      for(let i=0;i<roadBorders.length;i++){
+          if(polysIntersect(this.polygon,roadBorders[i])){
+              return true;
+          }
       }
-    }
-    for (let i = 0; i < traffic.length; i++) {
-      if (polysIntersect(this.polygon, traffic[i].polygon)) {
-        return true;
+      for(let i=0;i<traffic.length;i++){
+          if(polysIntersect(this.polygon,traffic[i].polygon)){
+              return true;
+          }
       }
-    }
-    return false;
+      return false;
   }
 
-  #createPolygon() {
-    const points = [];
-    const rad = Math.hypot(this.width, this.height) / 2;
-    const angleOffset = Math.atan2(this.height, this.width);
-    for (let i = 0; i < 4; i++) {
-      const angle = this.angle + angleOffset + (i * Math.PI) / 2;
+  #createPolygon(){
+      const points=[];
+      const rad=Math.hypot(this.width,this.height)/2;
+      const alpha=Math.atan2(this.width,this.height);
       points.push({
-        x: this.x - Math.sin(angle) * rad,
-        y: this.y - Math.cos(angle) * rad,
+          x:this.x-Math.sin(this.angle-alpha)*rad,
+          y:this.y-Math.cos(this.angle-alpha)*rad
       });
-    }
-    return points;
+      points.push({
+          x:this.x-Math.sin(this.angle+alpha)*rad,
+          y:this.y-Math.cos(this.angle+alpha)*rad
+      });
+      points.push({
+          x:this.x-Math.sin(Math.PI+this.angle-alpha)*rad,
+          y:this.y-Math.cos(Math.PI+this.angle-alpha)*rad
+      });
+      points.push({
+          x:this.x-Math.sin(Math.PI+this.angle+alpha)*rad,
+          y:this.y-Math.cos(Math.PI+this.angle+alpha)*rad
+      });
+      return points;
   }
 
-  #move() {
-    if (this.controls.forward) this.speed += this.acceleration;
-    if (this.controls.reverse) this.speed -= this.acceleration;
+  #move(){
+      if(this.controls.forward){
+          this.speed+=this.acceleration;
+      }
+      if(this.controls.reverse){
+          this.speed-=this.acceleration;
+      }
 
-    if (this.speed > this.maxSpeed) this.speed = this.maxSpeed;
-    if (this.speed < -this.maxSpeed / 2) this.speed = -this.maxSpeed / 2;
+      if(this.speed>this.maxSpeed){
+          this.speed=this.maxSpeed;
+      }
+      if(this.speed<-this.maxSpeed/2){
+          this.speed=-this.maxSpeed/2;
+      }
 
-    if (this.speed > 0) this.speed -= this.friction;
-    else if (this.speed < 0) this.speed += this.friction;
+      if(this.speed>0){
+          this.speed-=this.friction;
+      }
+      if(this.speed<0){
+          this.speed+=this.friction;
+      }
+      if(Math.abs(this.speed)<this.friction){
+          this.speed=0;
+      }
 
-    if (Math.abs(this.speed) < this.friction) this.speed = 0;
+      if(this.speed!=0){
+          const flip=this.speed>0?1:-1;
+          if(this.controls.left){
+              this.angle+=0.03*flip;
+          }
+          if(this.controls.right){
+              this.angle-=0.03*flip;
+          }
+      }
 
-    if (this.speed != 0) {
-      const flip = this.speed > 0 ? 1 : -1;
-      if (this.controls.left) this.angle += 0.03 * flip;
-      if (this.controls.right) this.angle -= 0.03 * flip;
-    }
-
-    this.x -= Math.sin(this.angle) * this.speed;
-    this.y -= Math.cos(this.angle) * this.speed;
+      this.x-=Math.sin(this.angle)*this.speed;
+      this.y-=Math.cos(this.angle)*this.speed;
   }
 
-  draw(context, color, drawSensor = false) {
-    // 🚘 Body
-    context.fillStyle = this.damaged ? "gray" : color;
-    context.beginPath();
-    context.moveTo(this.polygon[0].x, this.polygon[0].y);
-    for (let i = 1; i < this.polygon.length; i++) {
-      context.lineTo(this.polygon[i].x, this.polygon[i].y);
-    }
-    context.closePath();
-    context.fill();
+  draw(ctx,drawSensor=false){
+      if(this.sensor && drawSensor){
+          this.sensor.draw(ctx);
+      }
 
-    // 🚘 Add roof & windows for a "car look"
-    context.save();
-    context.translate(this.x, this.y);
-    context.rotate(-this.angle);
+      ctx.save();
+      ctx.translate(this.x,this.y);
+      ctx.rotate(-this.angle);
+      if(!this.damaged){
+          ctx.drawImage(this.mask,
+              -this.width/2,
+              -this.height/2,
+              this.width,
+              this.height);
+          ctx.globalCompositeOperation="multiply";
+      }
+      ctx.drawImage(this.img,
+          -this.width/2,
+          -this.height/2,
+          this.width,
+          this.height);
+      ctx.restore();
 
-    // roof
-    context.fillStyle = "white";
-    context.fillRect(
-      -this.width / 4,
-      -this.height / 3,
-      this.width / 2,
-      this.height / 2
-    );
-
-    // front windshield
-    context.fillStyle = "lightblue";
-    context.fillRect(
-      -this.width / 4,
-      -this.height / 2.2,
-      this.width / 2,
-      this.height / 6
-    );
-
-    // rear windshield
-    context.fillStyle = "lightblue";
-    context.fillRect(
-      -this.width / 4,
-      this.height / 3.5,
-      this.width / 2,
-      this.height / 6
-    );
-
-    // wheels
-    context.fillStyle = "black";
-    const wheelW = this.width / 4;
-    const wheelH = this.height / 8;
-    // front left
-    context.fillRect(-this.width / 2, -this.height / 2, wheelW, wheelH);
-    // front right
-    context.fillRect(this.width / 2 - wheelW, -this.height / 2, wheelW, wheelH);
-    // rear left
-    context.fillRect(-this.width / 2, this.height / 2 - wheelH, wheelW, wheelH);
-    // rear right
-    context.fillRect(
-      this.width / 2 - wheelW,
-      this.height / 2 - wheelH,
-      wheelW,
-      wheelH
-    );
-
-    context.restore();
-
-    // 🚘 Sensors
-    if (this.sensor && drawSensor) {
-      this.sensor.draw(context);
-    }
   }
 }
